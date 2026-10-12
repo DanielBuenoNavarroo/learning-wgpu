@@ -1,0 +1,19 @@
+[package]
+name = "learning-wgpu"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+bytemuck = { version = "1.25.2", features = ["derive"] }
+env_logger = "0.11.11"
+image = { version = "0.25.10", default-features = false, features = [
+    "png",
+    "jpeg",
+] }
+log = "0.4.34"
+pollster = "1.0.1"
+wgpu = { version = "30.0.1", features = ["default"] }
+winit = "0.30.13"
