@@ -19,5 +19,22 @@ image = { version = "0.25.10", default-features = false, features = [
 ] }
 log = "0.4.34"
 pollster = "1.0.1"
+tobj = { version = "4.0.5", default-features = false, features = ["async"] }
+tokio = { version = "1.53.2", features = [
+    "macros",
+    "rt",
+    "rt-multi-thread",
+    "fs",
+    "io-util",
+] }
 wgpu = { version = "30.0.1", features = ["default"] }
 winit = "0.30.13"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+reqwest = { version = "0.11" }
+web-sys = { version = "0.3.106", features = [
+    "Document",
+    "Window",
+    "Element",
+    "Location",
+] }
