@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use winit::{
     application::ApplicationHandler,
-    event::WindowEvent,
+    event::{ElementState, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
+    keyboard::PhysicalKey,
     window::{Window, WindowId},
 };
 
@@ -12,6 +13,7 @@ use crate::renderer::renderer::Renderer;
 pub struct App {
     window: Option<Arc<Window>>,
     renderer: Option<Renderer>,
+    last_frame_time: std::time::Instant,
 }
 
 impl App {
@@ -19,6 +21,7 @@ impl App {
         Self {
             window: None,
             renderer: None,
+            last_frame_time: std::time::Instant::now(),
         }
     }
 
@@ -68,14 +71,28 @@ impl ApplicationHandler for App {
 
             WindowEvent::Resized(size) => {
                 if let Some(renderer) = self.renderer.as_mut() {
-                    renderer.resize(size);
+                    renderer.resize(size.width, size.height);
                 }
                 window.request_redraw();
             }
 
             WindowEvent::RedrawRequested => {
                 if let Some(renderer) = self.renderer.as_mut() {
-                    renderer.render();
+                    let now = std::time::Instant::now();
+                    let dt = now - self.last_frame_time;
+                    self.last_frame_time = now;
+
+                    renderer.render(dt);
+                }
+            }
+
+            WindowEvent::KeyboardInput { event, .. } => {
+                if let Some(renderer) = self.renderer.as_mut() {
+                    let pressed = event.state == ElementState::Pressed;
+
+                    if let PhysicalKey::Code(keycode) = event.physical_key {
+                        renderer.handle_key(event_loop, keycode, pressed);
+                    }
                 }
             }
 

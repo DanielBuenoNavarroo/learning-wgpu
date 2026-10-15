@@ -1,13 +1,21 @@
 use std::sync::Arc;
 
 use wgpu::util::DeviceExt;
-use winit::{dpi::PhysicalSize, window::Window};
+use winit::{
+    dpi::PhysicalSize,
+    event::ElementState::{self, Pressed},
+    event_loop::ActiveEventLoop,
+    keyboard::KeyCode,
+    window::Window,
+};
 
-use crate::renderer::{
-    camera::{Camera, CameraUniform},
-    instance::TileInstance,
-    mesh::{Mesh, Vertex},
-    pipeline::Pipeline,
+use crate::{
+    game::tilemap::TileMap,
+    renderer::{
+        camera::{Camera, CameraController, CameraUniform, Projection},
+        mesh::Mesh,
+        pipeline::Pipeline,
+    },
 };
 
 pub struct Renderer {
@@ -19,7 +27,9 @@ pub struct Renderer {
     window: Arc<Window>,
 
     camera: Camera,
+    projection: Projection,
     camera_uniform: CameraUniform,
+    camera_controller: CameraController,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
 
@@ -28,6 +38,7 @@ pub struct Renderer {
     pub mesh: Mesh,
     pub instance_buffer: wgpu::Buffer,
     pub instance_count: u32,
+    pub tilemap: TileMap,
 }
 
 impl Renderer {
@@ -89,17 +100,16 @@ impl Renderer {
         surface.configure(&device, &config);
 
         let camera = Camera::new(
-            cgmath::Point3::new(120.0, 150.0, 120.0),
-            cgmath::Point3::new(50.0, 0.0, 50.0),
-            cgmath::Vector3::unit_y(),
-            config.width as f32 / config.height as f32,
-            45.0,
-            0.1,
-            1000.0,
+            (50.0, 80.0, 50.0), 
+            cgmath::Deg(180.0), 
+            cgmath::Deg(-60.0),
         );
+        let projection =
+            Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 500.0);
+        let camera_controller = CameraController::new(4.0, 0.4);
 
         let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_proj(&camera);
+        camera_uniform.update_view_proj(&camera, &projection);
 
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
@@ -131,44 +141,16 @@ impl Renderer {
             }],
         });
 
-        let vertices = [
-            Vertex {
-                position: [0.0, 0.0, 0.0],
-                color: [0.3, 0.6, 0.2],
-            },
-            Vertex {
-                position: [1.0, 0.0, 0.0],
-                color: [0.3, 0.6, 0.2],
-            },
-            Vertex {
-                position: [1.0, 0.0, 1.0],
-                color: [0.3, 0.6, 0.2],
-            },
-            Vertex {
-                position: [0.0, 0.0, 1.0],
-                color: [0.3, 0.6, 0.2],
-            },
-        ];
+        let mesh = Mesh::quad(&device);
 
-        let indices: &[u16] = &[0, 2, 1, 0, 3, 2];
+        let tilemap = TileMap::new(100, 100);
 
-        let mesh = Mesh::new(&device, &vertices, indices);
-
-        let mut instances = Vec::new();
-
-        for y in 0..100 {
-            for x in 0..100 {
-                instances.push(TileInstance {
-                    position: [x as f32, 0.0, y as f32],
-                    color: [0.3, 0.6, 0.2],
-                });
-            }
-        }
+        let instances = tilemap.to_instances();
 
         let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Instance Buffer"),
             contents: bytemuck::cast_slice(&instances),
-            usage: wgpu::BufferUsages::VERTEX,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
 
         Self {
@@ -179,38 +161,54 @@ impl Renderer {
             window,
 
             camera,
+            projection,
             camera_uniform,
             camera_buffer,
             camera_bind_group,
+            camera_controller,
 
             pipeline,
 
             mesh,
             instance_buffer,
             instance_count: instances.len() as u32,
+            tilemap,
         }
     }
 
-    pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
-        if new_size.width == 0 || new_size.height == 0 {
-            return;
+    pub fn resize(&mut self, width: u32, height: u32) {
+        if width > 0 && height > 0 {
+            self.projection.resize(width, height);
+            self.config.width = width;
+            self.config.height = height;
+            self.surface.configure(&self.device, &self.config);
         }
-
-        self.config.width = new_size.width;
-        self.config.height = new_size.height;
-
-        self.surface.configure(&self.device, &self.config);
     }
 
-    pub fn render(&mut self) {
-        self.camera_uniform.update_view_proj(&self.camera);
+    pub fn handle_key(&mut self, event_loop: &ActiveEventLoop, key: KeyCode, pressed: bool) {
+        let state = if pressed {
+            ElementState::Pressed
+        } else {
+            ElementState::Released
+        };
+        if !self.camera_controller.process_keyboard(key, state) {
+            match (key, pressed) {
+                (KeyCode::Escape, true) => event_loop.exit(),
+                _ => {}
+            }
+        }
+    }
 
+    pub fn render(&mut self, dt: std::time::Duration) {
+        self.camera_controller.update_camera(&mut self.camera, dt);
+        self.camera_uniform
+            .update_view_proj(&self.camera, &self.projection);
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
             bytemuck::cast_slice(&[self.camera_uniform]),
         );
-        
+
         let frame = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(tex) => tex,
             wgpu::CurrentSurfaceTexture::Suboptimal(tex) => tex,

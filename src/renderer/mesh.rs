@@ -54,29 +54,17 @@ impl Mesh {
             index_count: indices.len() as u32,
         }
     }
-}
 
-pub fn quad(device: &wgpu::Device) -> Mesh {
-    let vertices = [
-        Vertex {
-            position: [-0.5, 0.5, 0.0],
-            color: [1.0, 1.0, 1.0],
-        },
-        Vertex {
-            position: [-0.5, -0.5, 0.0],
-            color: [1.0, 1.0, 1.0],
-        },
-        Vertex {
-            position: [0.5, -0.5, 0.0],
-            color: [1.0, 1.0, 1.0],
-        },
-        Vertex {
-            position: [0.5, 0.5, 0.0],
-            color: [1.0, 1.0, 1.0],
-        },
+    pub fn quad(device: &wgpu::Device) -> Mesh {
+        let vertices = [
+        Vertex { position: [0.0, 0.0, 0.0], color: [1.0, 1.0, 1.0] },
+        Vertex { position: [1.0, 0.0, 0.0], color: [1.0, 1.0, 1.0] },
+        Vertex { position: [1.0, 0.0, 1.0], color: [1.0, 1.0, 1.0] },
+        Vertex { position: [0.0, 0.0, 1.0], color: [1.0, 1.0, 1.0] },
     ];
 
-    let indices: &[u16] = &[0, 1, 2, 2, 3, 0];
+        let indices: &[u16] = &[0, 1, 2, 2, 3, 0];
 
-    Mesh::new(device, &vertices, indices)
+        Mesh::new(device, &vertices, indices)
+    }
 }
